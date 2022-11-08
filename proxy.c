@@ -112,9 +112,7 @@ void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *ver
   /* new request line */
   sprintf(buf_rl, "%s %s %s\r\n", method, uri_ptos, version);
   
-  /* make request headers 
-   */
-
+  /* make request headers */
   sprintf(buf_hdr, "Host: %s\r\n", host);
   sprintf(buf_hdr, "%s%s",buf_hdr, user_agent_hdr);
   sprintf(buf_hdr, "%sConnection: close\r\n",buf_hdr);
