@@ -80,7 +80,8 @@ int do_it(connfd){
   /* connect with server */
   clientfd = Open_clientfd(host, port);
 
-  /* make a new request line 
+  /* 
+   * make a new request line 
    * and request headers 
    */
   create_ptos_request(&rio_ctop, method, uri_ptos, version, host, buf_rl, buf_hdr);
@@ -127,7 +128,6 @@ void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *ver
  * get a response from server : hdr + content (clientfd)
  * send a response to client (connfd)
  */
-
 void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd */
   /* 서버한테 요청해요 */
   /* : request buffer를 clientfd에 write */
