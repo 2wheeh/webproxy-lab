@@ -14,11 +14,13 @@ static const char *user_agent_hdr =
  * function proto-
  ****************************/
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
-void parse_uri(char *uri_ctop, char *uri_ptos, char *port, char *host);
+void parse_uri_ctop(char *uri_ctop, char *uri_ptos, char *port, char *host);
 void read_requesthdrs(rio_t *rp);
 int do_it(int fd);
 void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr);
 void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *version, char *host, char *buf_rl, char *buf_hdr);
+
+///////////////////////////////
 
 int main(int argc, char **argv) {
   int listenfd, connfd;
@@ -46,6 +48,14 @@ int main(int argc, char **argv) {
   return 0;
 }
 
+/*
+ * do_it - do what proxy is supposed to do.
+ * 1. read request from client (connfd)
+ * 2. parse the request (line and hdrs)
+ * (call toss)
+ * 3. send a modified request to server (clientfd)
+ * 4. get response from server (clientfd) and toss it to client(connfd)
+ */
 int do_it(connfd){
   int clientfd;
   char method[MAXLINE], version[MAXLINE], port[MAXLINE], host[MAXLINE];
@@ -59,38 +69,49 @@ int do_it(connfd){
   Rio_readlineb(&rio_ctop, buf, MAXLINE);
   
   /* request line valid 검사 필요 */
+
+  /* preprocess to parse request line */
   sscanf(buf, "%s %s %s", method, uri_ctop, version);
 
-  parse_uri(uri_ctop, uri_ptos, port, host);
+  /* parse request line */
+  parse_uri_ctop(uri_ctop, uri_ptos, port, host);
   version[strlen(version)-1] = '0'; // HTTP/1.1 -> HTTP/1.0
   
   /* connect with server */
   clientfd = Open_clientfd(host, port);
 
-  /* new request line */
-  /* add request header */
+  /* make a new request line 
+   * and request headers 
+   */
   create_ptos_request(&rio_ctop, method, uri_ptos, version, host, buf_rl, buf_hdr);
 
-
-  /* make clientfd and get response 
-   * toss resp. from clientfd to connfd 
+  /* toss request from client to server : connfd -> clientfd
+   * toss resp.   from server to client : clientfd -> connfd
    */
   toss(connfd, clientfd, buf_rl, buf_hdr);
+
   /* close clientfd */
   Close(clientfd);
   
 }
 
+/*
+ * create_ptos_request - make a new request to be sent to server, which is made out of the request from client originally.
+ * in this proxy, we make request line and headers as below (following CMU proxylab guide) 
+ * (request line)
+ * method URI HTTP/1.0 (: version must be HTTP1.0)
+ * (request hdrs)
+ * Host:
+ * User-Agent: user_agent_hdr
+ * Connection: close
+ * Proxy-Connection: close 
+ */
 void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *version, char *host, char *buf_rl, char *buf_hdr){
   char buf[MAXLINE];
   /* new request line */
   sprintf(buf_rl, "%s %s %s\r\n", method, uri_ptos, version);
   
   /* make request headers 
-   * Host: 
-   * User-Agent: 
-   * Connection: close
-   * Proxy-Connection: close 
    */
 
   sprintf(buf_hdr, "Host: %s\r\n", host);
@@ -100,11 +121,18 @@ void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *ver
   sprintf(buf_hdr, "%s\r\n",buf_hdr);
 }
 
+/*
+ * toss - do a middleman job in between client and server.
+ * send an appropriate request to server (clienfd)
+ * get a response from server : hdr + content (clientfd)
+ * send a response to client (connfd)
+ */
+
 void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd */
-  /* 3. 서버한테 요청해요 */
-  /* request buffer를 clientfd에 write : 서버에 요청 */
-  /* 4. 응답 받아요 */
-  /* clientfd가 서버에게 받아온 걸 read해서 buf에  */
+  /* 서버한테 요청해요 */
+  /* : request buffer를 clientfd에 write */
+  /* 응답 받아서 전달 */
+  /* : clientfd가 서버에게 받아온 걸 read해서 buf에.  */
   /* buf를 클라이언트와 연결된 connfd에게 write */
   
   rio_t rio_ptos;
@@ -118,7 +146,8 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd
   Rio_writen(clientfd, buf_rl, strlen(buf_rl));
   Rio_writen(clientfd, buf_hdr, strlen(buf_hdr));
 
-  /* toss response hdr to connfd line by line
+  /* 
+   * toss response hdr to connfd (line by line)
    * and parse content-length 
    */
   Rio_readinitb(&rio_ptos, clientfd);
@@ -139,7 +168,8 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd
   }
   Rio_writen(connfd, buf, strlen(buf));
 
-  /* allocate memory for content and put them in scrp 
+  /* 
+   * allocate memory for content and put them in scrp 
    * write content to connfd 
    */
   srcp = malloc(content_len);
@@ -148,7 +178,11 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd
   free(srcp);
 }
 
-void parse_uri(char *uri_ctop, char *uri_ptos, char *port, char *host)
+/*
+ * parse_uri_ctop - parse an uri from client.
+ * so we get 1. port# 2. host 3. uri (w/o domain part, stripped)
+ */
+void parse_uri_ctop(char *uri_ctop, char *uri_ptos, char *port, char *host)
 { 
   char *ptr;
   if(strstr(uri_ctop, "http://")) uri_ctop += strlen("http://");  /* strip 'http://' */
