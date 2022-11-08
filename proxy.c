@@ -19,7 +19,7 @@ void read_requesthdrs(rio_t *rp);
 int do_it(int fd);
 void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr);
 void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *version, char *host, char *buf_rl, char *buf_hdr);
-
+void sigchld_hander(int sig);
 ///////////////////////////////
 
 int main(int argc, char **argv) {
@@ -34,14 +34,18 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  Signal(SIGCHLD, sigchld_hander);
   listenfd = Open_listenfd(argv[1]); // port #
   while(1) {
     clientlen = sizeof(clientaddr);
     connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept /* socket address = SA clientaddr를 listenfd로 채워줘 */
-    Getnameinfo((SA *) &clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0); // host name이 채워짐 (port -> client의 단기 port)
-    
-    do_it(connfd); /* 1. 브러우져한테 요청을 받아여 */
-    /* close connfd */
+    if (Fork()==0) {
+      Close(listenfd);
+      do_it(connfd); /* 1. 브러우져한테 요청을 받아여 */
+      /* close connfd */
+      Close(connfd);
+      exit(0);
+    }
     Close(connfd);
   }
 
@@ -196,4 +200,16 @@ void parse_uri_ctop(char *uri_ctop, char *uri_ptos, char *port, char *host)
   } else port = "80";  
 
   strcpy(host, uri_ctop);                         /* make host */
+}
+
+/*
+ * sigchld_hander - 서버들은 장시간 돌아가므로 좀비 자식들을 청소하는 SIGCHLD 해들러를 포함해야한다.
+ * SIGCHLD 시그널들은 SIGCHLD 핸들러가 돌고 있는 동안 block되고, linux 시그널들은 큐에 들어가지 않기 때문에
+ * SIGCHLD 핸들러는 다수의 좀비 자식들을 청소할 준비를 해야 한다.
+ */
+void sigchld_hander(int sig)
+{
+  while (waitpid(-1, 0, WNOHANG) > 0)
+    ;
+  return;
 }
