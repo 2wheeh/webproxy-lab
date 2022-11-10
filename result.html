@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        .wrapper {
+            display : flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        img {
+            max-width: 500px;
+            display: block;
+        }
+        .btns {
+            margin : 10px;
+            padding : 5px;
+            border-radius: 3px;
+            background-color:rgba(237, 157, 100, 0.961);
+            color: white;
+            border: 0;
+            outline: 0;
+        }
+        </style>
+        <script>
+            function HideAndShow() {
+                const img = document.getElementById("team6");
+                if(img.style.display === "none"){
+                    img.style.display = "block";
+                }
+                else{
+                    img.style.display = "none";
+                }
+            } 
+            function goAdder() {
+                const first = document.getElementById("arg1").value;
+                const second = document.getElementById("arg2").value;
+    
+                document.location.href=`./cgi-bin/adder?${first}&${second}`;
+            }
+        </script>
+</head>
+<body>
+    <div class="wrapper">
+        <div>
+            <video autoplay muted loop src="meatvideo.mp4"></video>
+        </div>
+        <div id="teamName">
+            <span>육사시미육회육개장큰컵사발면육망의항아리HTTPPAP조</span>
+        </div>
+        <div> 
+            <div class="adder">
+                <span><input type="text" id="arg1" size="10"></span>
+                <span><input type="text" id="arg2" size="10"></span>
+            </div>
+            <div>
+                <button class="btns" id="btnAdder" onclick="goAdder()">Add</button>
+                <button class="btns" id="btnTeam6" onclick="HideAndShow()">Team6</button>
+            </div>
+        </div>
+        <div id="team6">
+            <img src="httppap.png">
+        </div>
+    </div> 
+</body>
+</html>
