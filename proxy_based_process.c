@@ -171,11 +171,14 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd
   Rio_writen(connfd, buf, strlen(buf));
 
   /* 
-   * allocate memory for content and put them in scrp 
-   * write content to connfd 
+   * allocate memory(srcp) for contents and put them in srcp
+   * write contents to connfd 
    */
+  // char *buf_obj[content_len];
+  // Rio_readnb(&rio_ptos, buf_obj, content_len);
   srcp = malloc(content_len);
   Rio_readnb(&rio_ptos, srcp, content_len);
+  // Rio_writen(connfd, buf_obj, content_len);
   Rio_writen(connfd, srcp, content_len);
   free(srcp);
 }
@@ -205,7 +208,7 @@ void parse_uri_ctop(char *uri_ctop, char *uri_ptos, char *port, char *host)
 /*
  * sigchld_hander - 서버들은 장시간 돌아가므로 좀비 자식들을 청소하는 SIGCHLD 해들러를 포함해야한다.
  * SIGCHLD 시그널들은 SIGCHLD 핸들러가 돌고 있는 동안 block되고, linux 시그널들은 큐에 들어가지 않기 때문에
- * SIGCHLD 핸들러는 다수의 좀비 자식들을 청소할 준비를 해야 한다.
+ * SIGCHLD 핸들러는 다수의 좀비 자식들을 청소할 준비를 해야 한다 - CSAPP p.939
  */
 void sigchld_hander(int sig)
 {

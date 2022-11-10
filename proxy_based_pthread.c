@@ -1,10 +1,9 @@
 #include <stdio.h>
 #include "csapp.h"
-#include "cache.h"
 
 /* Recommended max cache and object sizes */
-// #define MAX_CACHE_SIZE 1049000
-// #define MAX_OBJECT_SIZE 102400
+#define MAX_CACHE_SIZE 1049000
+#define MAX_OBJECT_SIZE 102400
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr =
@@ -17,53 +16,42 @@ static const char *user_agent_hdr =
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void parse_uri_ctop(char *uri_ctop, char *uri_ptos, char *port, char *host);
 void read_requesthdrs(rio_t *rp);
-int do_it(int fd, cache_list *c_list);
-void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr, cache_list *c_list, char *uri_ptos);
+int do_it(int fd);
+void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr);
 void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *version, char *host, char *buf_rl, char *buf_hdr);
 void *thread(void *vargp);
 ///////////////////////////////
 
 int main(int argc, char **argv) {
-  int listenfd, connfd;
+  int listenfd, *connfdp;
   socklen_t clientlen;
   struct sockaddr_storage clientaddr;
   pthread_t tid;
 
-  cache_list *c_list = (cache_list *)Malloc(sizeof(cache_list));
-  init(c_list);
-
-
   /* Check command line args */
   if (argc != 2) {     // 메인함수에 전달되는 정보의 개수가 2개여야 함 argv[0]은 실행 경로 [1] port (server well known)
     fprintf(stderr, "usage: %s <port>\n", argv[0]);
-    exit(0); 
+    exit(0);  // 0, 1 차이 ??????????
   }
 
   listenfd = Open_listenfd(argv[1]); // port #
   while(1) {
     clientlen = sizeof(clientaddr);
-    connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept /* socket address = SA clientaddr를 listenfd로 채워줘 */
-    
-    myarg *Myarg = (myarg *)Malloc(sizeof(myarg));
-    Myarg->arg_fdp = connfd;
-    Myarg->arg_cache = c_list;
-
-    Pthread_create(&tid, NULL, thread, Myarg);
+    connfdp = Malloc(sizeof(int));
+    *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept /* socket address = SA clientaddr를 listenfd로 채워줘 */
+    Pthread_create(&tid, NULL, thread, connfdp);
   }
-  Free(c_list);
+
   return 0;
 }
 
 /* Thread routine */
 void *thread(void *vargp)
 {
-  int connfd = (((myarg *)vargp)->arg_fdp);
-  cache_list *c_list = ((myarg *)vargp)->arg_cache;
-
+  int connfd = *((int *)vargp);
   Pthread_detach(pthread_self());
-  Free((myarg *)vargp);
-
-  do_it(connfd, c_list);
+  Free(vargp);
+  do_it(connfd);
   Close(connfd);
   return NULL;
 }
@@ -76,13 +64,12 @@ void *thread(void *vargp)
  * 3. send a modified request to server (clientfd)
  * 4. get response from server (clientfd) and toss it to client(connfd)
  */
-int do_it(int connfd, cache_list *c_list){
+int do_it(connfd){
   int clientfd;
   char method[MAXLINE], version[MAXLINE], port[MAXLINE], host[MAXLINE];
   char uri_ptos[MAXLINE], uri_ctop[MAXLINE];
   char buf[MAXBUF], buf_rl[MAXLINE], buf_hdr[MAXLINE];
-  node_c *cache;
-
+  
   rio_t rio_ctop; 
 
   /* Read request line and headers from connfd */
@@ -97,18 +84,7 @@ int do_it(int connfd, cache_list *c_list){
   /* parse request line */
   parse_uri_ctop(uri_ctop, uri_ptos, port, host);
   version[strlen(version)-1] = '0'; // HTTP/1.1 -> HTTP/1.0
-
-  /* try to cache hit */
-  cache = search(c_list, uri_ptos);
-  if(cache){
-    printf("\n                   ██████╗ █████╗  ██████╗██╗  ██╗███████╗    ██╗  ██╗██╗████████╗    ██╗\n ░▄▌░░░░░░░░░▄    ██╔════╝██╔══██╗██╔════╝██║  ██║██╔════╝    ██║  ██║██║╚══██╔══╝    ██║\n ████████████▄    ██║     ███████║██║     ███████║█████╗      ███████║██║   ██║       ██║\n ░░░░░░░░▀▐████   ██║     ██╔══██║██║     ██╔══██║██╔══╝      ██╔══██║██║   ██║       ╚═╝\n ░░░░░░░░░░░▐██▌  ╚██████╗██║  ██║╚██████╗██║  ██║███████╗    ██║  ██║██║   ██║       ██╗\n                   ╚═════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝    ╚═╝  ╚═╝╚═╝   ╚═╝       ╚═╝\n\n");
-    Rio_writen(connfd, cache->c_hdr, strlen(cache->c_hdr));
-    Rio_writen(connfd, cache->c_val, cache->obj_size);
-    
-    return;
-  }
-  // if fail to cache hit
-
+  
   /* connect with server */
   clientfd = Open_clientfd(host, port);
 
@@ -121,10 +97,11 @@ int do_it(int connfd, cache_list *c_list){
   /* toss request from client to server : connfd -> clientfd
    * toss resp.   from server to client : clientfd -> connfd
    */
-  toss(connfd, clientfd, buf_rl, buf_hdr, c_list, uri_ptos);
+  toss(connfd, clientfd, buf_rl, buf_hdr);
 
   /* close clientfd */
   Close(clientfd);
+  
 }
 
 /*
@@ -157,7 +134,7 @@ void create_ptos_request(rio_t *rp_ctop, char *method, char *uri_ptos, char *ver
  * get a response from server : hdr + content (clientfd)
  * send a response to client (connfd)
  */
-void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr, cache_list *c_list, char *uri_ptos){ /* <- clientfd */
+void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr){ /* <- clientfd */
   /* 서버한테 요청해요 */
   /* : request buffer를 clientfd에 write */
   /* 응답 받아서 전달 */
@@ -165,13 +142,11 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr, cache_list *c_l
   /* buf를 클라이언트와 연결된 connfd에게 write */
   
   rio_t rio_ptos;
-  char buf[MAXLINE], cbuf[MAXBUF];
+  char buf[MAXLINE];
   char content_length[MAXLINE];
   int content_len;
   char *srcp;
   char *ptr;
-
-  sprintf(cbuf, "");
 
   /* send request to server */
   Rio_writen(clientfd, buf_rl, strlen(buf_rl));
@@ -186,20 +161,18 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr, cache_list *c_l
   while(strcmp(buf, "\r\n")){
     /* content-length parsing */
     if(strstr(buf, "Content-length: ")) {
+      // strcpy(ptr, buf);
       ptr = index(buf, ' ');
+      // ptr += strlen("Content-length: ");
+      // strcpy(content_length, ptr);
       sprintf(content_length, "%s", ptr);
       content_len = atoi(content_length);
     }
 
-    // Rio_writen(connfd, buf, strlen(buf));
-    sprintf(cbuf,"%s%s",cbuf, buf);
+    Rio_writen(connfd, buf, strlen(buf));
     Rio_readlineb(&rio_ptos, buf, MAXLINE);
   }
-  sprintf(cbuf, "%s%s", cbuf, buf);
-  // Rio_writen(connfd, buf, strlen(buf));
-  Rio_writen(connfd, cbuf, strlen(cbuf));
-  // sprintf 로 눌러담고 writen 할때 strlen으로 hdr size 전달
-
+  Rio_writen(connfd, buf, strlen(buf));
 
   /* 
    * allocate memory(srcp) for contents and put them in srcp
@@ -207,20 +180,11 @@ void toss(int connfd, int clientfd, char *buf_rl, char *buf_hdr, cache_list *c_l
    */
   // char *buf_obj[content_len];
   // Rio_readnb(&rio_ptos, buf_obj, content_len);
-  srcp = Malloc(content_len);
+  srcp = malloc(content_len);
   Rio_readnb(&rio_ptos, srcp, content_len);
   // Rio_writen(connfd, buf_obj, content_len);
   Rio_writen(connfd, srcp, content_len);
-
-  // cache it if small enough
-  // srcp 를 node에 전달 후 free 안하고 return
-  // 이미 없어서 왔고, MAX OBJECT SIZE 보다 작으면 cache에 push 시도
-  if(content_len < MAX_OBJECT_SIZE){
-    push(c_list, uri_ptos, srcp, cbuf, content_len);
-    return;
-  }
-
-  Free(srcp);
+  free(srcp);
 }
 
 /*
