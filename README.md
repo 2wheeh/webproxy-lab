@@ -1,3 +1,16 @@
+### adder
+- 환경변수로 arg1, arg2 전달
+### part 1
+- valid 검사 구현 따로 못 함 -> _curl_ ,  _telnet_ 으로 들어오는 request style 대응 가능
+### part 2
+- thread 이용 : thread arg로 connfd와 cache_list 두 가지를 전달하기위해 myarg 구조체 활용
+### part 3
+- 전역변수가 아닌 thread 매개변수로 cache_list 전달하여 사용
+- doubly linked list로 cache list구현
+- cache 탐색 시 선형 탐색
+- LRU 적용
+- 세부사항 cache.c, cache.h 주석 참고 
+```
 ####################################################################
 # CS:APP Proxy Lab
 #
@@ -46,4 +59,4 @@ nop-server.py
 
 tiny
     Tiny Web server from the CS:APP text
-
+```
